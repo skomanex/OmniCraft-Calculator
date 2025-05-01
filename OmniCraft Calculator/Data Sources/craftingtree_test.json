@@ -1,0 +1,36 @@
+{
+  "items": [
+    {
+      "name": "torch",
+      "ingredients": {
+        "coal": 1,
+        "stick": 1
+      },
+      "product": 1
+    },
+    {
+      "name": "coal",
+      "ingredients": null,
+      "product": 1
+    },
+    {
+      "name": "stick",
+      "ingredients": {
+        "plank": 2
+      },
+      "product": 4
+    },
+    {
+      "name": "plank",
+      "ingredients": {
+        "wood": 1
+      },
+      "product": 4
+    },
+    {
+      "name": "wood",
+      "ingredients": null,
+      "product": 1
+    }
+  ]
+}
