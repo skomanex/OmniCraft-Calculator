@@ -24,4 +24,8 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Data Outputs\" />
+  </ItemGroup>
+
 </Project>
