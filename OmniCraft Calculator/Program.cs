@@ -181,7 +181,7 @@ public class Program
 
         if (list == "")
         {
-            result[1] = GenerateOnTheFly(treeItems);
+            result[1] = GenerateOnTheFly(treeItems, Path.GetFileNameWithoutExtension(tree).Replace("craftingtree_", ""));
         }
         else
         {
@@ -202,7 +202,7 @@ public class Program
     /// </summary>
     /// <param name="items"></param>
     /// <returns>Une liste de craft</returns>
-    static JArray GenerateOnTheFly(JArray items)
+    static JArray GenerateOnTheFly(JArray items, string gameName)
     {
         JArray result = new JArray();
 
@@ -265,7 +265,19 @@ public class Program
             {
                 Console.Clear();
                 Console.WriteLine("Reinitialisation de l'affichage des objets de l'arbre de recettes");
+                Console.WriteLine("Veuillez entrer le nom ou l'index de l'objet que vous souhaitez ajouter suivi de la quantite, si seule une partie du nom est saisie la liste sera filtree");
+                Console.WriteLine("Saisir -1 pour finir l'ajout, -2 pour reinitialiser l'affichage des objets de l'arbre de recettes");
+                Console.WriteLine($"{items.Count} objet(s) sont disponnible(s) a l'ajout de la liste de craft");
                 foreach (var item in items
+                    .Select((value, index) => (value, index)))
+                {
+                    Console.WriteLine(item.index + ". " + item.value["name"]);
+                }
+            }
+            else if (userInput.Length == 1)
+            {
+                foreach (var item in items
+                    .Where(item => item["name"].ToString().Contains(userInput[0].ToLower()))
                     .Select((value, index) => (value, index)))
                 {
                     Console.WriteLine(item.index + ". " + item.value["name"]);
@@ -279,8 +291,17 @@ public class Program
         Console.WriteLine("Souhaitez-vous sauvegarder la liste de craft? (Y/N)");
         if(Console.ReadLine().ToLower().StartsWith("y"))
         {
-            string fileName = $"craftinglist_{Path.GetFileNameWithoutExtension(items.ToString())}_{DateTime.Now:yyyyMMdd_HHmmss}.json";
-            File.WriteAllText(Path.Combine("Data Outputs", fileName), result.ToString());
+            string projectRoot = AppDomain.CurrentDomain.BaseDirectory;
+            string directoryPath = Path.Combine(projectRoot, @"..\..\..\Data Outputs");
+
+            if (!Directory.Exists(directoryPath))
+            {
+                Directory.CreateDirectory(directoryPath);
+            }
+
+            string fileName = $"craftinglist_{gameName}_{DateTime.Now:yyyyMMdd_HHmmss}.json";
+            File.WriteAllText(Path.Combine(directoryPath, fileName), result.ToString());
+
             Console.WriteLine($"Liste de craft sauvegardee sous le nom : {fileName}");
         }
         else
@@ -299,9 +320,95 @@ public class Program
     /// <param name="craftList"></param>
     static void SolveList(JArray craftTree, JArray craftList)
     {
-        // #TODO Solutionner les crafts
-        Console.WriteLine("TODO Solutionner les crafts");
-        return;
+        Dictionary<string, int> requiredItems = new Dictionary<string, int>();
+
+        void ResolveDependencies(string itemName, int quantityNeeded)
+        {
+            var item = craftTree.FirstOrDefault(i => i["name"].ToString().Equals(itemName, StringComparison.OrdinalIgnoreCase));
+            if (item == null)
+            {
+                Console.WriteLine($"Avertissement : Objet '{itemName}' introuvable dans l'arbre de craft.");
+                return;
+            }
+
+            int productQuantity = item["product"].Value<int>();
+            int craftOperations = (int)Math.Ceiling((double)quantityNeeded / productQuantity);
+
+            var ingredients = item["ingredients"] as JObject;
+            if (ingredients != null)
+            {
+                foreach (var ingredient in ingredients.Properties())
+                {
+                    string ingredientName = ingredient.Name;
+                    int ingredientQuantity = ingredient.Value.Value<int>() * craftOperations;
+                    ResolveDependencies(ingredientName, ingredientQuantity);
+                }
+            }
+            else
+            {
+                if (requiredItems.ContainsKey(itemName))
+                {
+                    requiredItems[itemName] += quantityNeeded;
+                }
+                else
+                {
+                    requiredItems[itemName] = quantityNeeded;
+                }
+            }
+        }
+
+        foreach (var craftItem in craftList)
+        {
+            string itemName = craftItem["name"].ToString();
+            int quantityNeeded = craftItem["quantity"].Value<int>();
+            ResolveDependencies(itemName, quantityNeeded);
+        }
+
+        Console.WriteLine("Matieres premieres et crafts intermediaires necessaires :");
+        foreach (var requiredItem in requiredItems)
+        {
+            Console.WriteLine($"{requiredItem.Key}: {requiredItem.Value}");
+        }
+
+        Console.WriteLine("Souhaitez-vous sauvegarder la solution ? (Y/N)");
+        if (Console.ReadLine().ToLower().StartsWith("y"))
+        {
+            Console.WriteLine("Choisissez le format (JSON/TXT) :");
+            string format = Console.ReadLine().ToUpper();
+            string projectRoot = AppDomain.CurrentDomain.BaseDirectory;
+            string directoryPath = Path.Combine(projectRoot, @"..\..\..\Data Outputs");
+
+            if (!Directory.Exists(directoryPath))
+            {
+                Directory.CreateDirectory(directoryPath);
+            }
+
+            string fileName = $"solution_{DateTime.Now:yyyyMMdd_HHmmss}.{format.ToLower()}";
+            string filePath = Path.Combine(directoryPath, fileName);
+
+            if (format == "JSON")
+            {
+                JObject solution = new JObject(
+                    new JProperty("requiredItems", JObject.FromObject(requiredItems))
+                );
+                File.WriteAllText(filePath, solution.ToString());
+            }
+            else if (format == "TXT")
+            {
+                List<string> lines = requiredItems.Select(ri => $"{ri.Key}: {ri.Value}").ToList();
+                File.WriteAllLines(filePath, lines);
+            }
+            else
+            {
+                Console.WriteLine("Format non pris en charge. La solution n'a pas ete sauvegardee.");
+            }
+
+            Console.WriteLine($"Solution sauvegardee sous le nom : {fileName}");
+        }
+        else
+        {
+            Console.WriteLine("Solution non sauvegardee.");
+        }
     }
 
     /// <summary>
